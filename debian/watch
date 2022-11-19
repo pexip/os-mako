@@ -1,0 +1,15 @@
+version=4
+
+# Upstream uses on GitHub tags like 'rel_1_2_4' and filenames as
+# 'mako-rel_1_2_4.tar.gz'.The following mangling produces a filename as
+# 'mako-1.2.4.tar.gz' which is wrong.
+
+opts="mode=git, \
+      compression=gz, \
+      repacksuffix=ds, \
+      filenamemangle=s/rel_.+\/?(\d\S+)\.tar\.gz/mako-rel$1\.tar\.gz/, \
+      uversionmangle=s/(\d)[_\.\-\+]?((RC|rc|pre|dev|beta|alpha)\.?\d*)$/$1~$2/; \
+                     s/_/./g, \
+      dversionmangle=s/\+ds(\.?\d+)?$//" \
+https://github.com/sqlalchemy/mako.git \
+      refs/tags/rel_(\d_\d_\d)

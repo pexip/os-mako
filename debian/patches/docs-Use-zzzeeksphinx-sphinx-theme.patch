@@ -1,0 +1,26 @@
+From: Antonio Valentino <antonio.valentino@tiscali.it>
+Date: Fri, 3 Jan 2020 08:32:04 +0000
+Subject: docs: Use zzzeeksphinx sphinx theme
+
+Use the zzzeeksphinx theme instead of zsmako that is still not available
+in Debian.
+
+Forwarded: not-needed
+---
+ doc/build/conf.py | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/doc/build/conf.py b/doc/build/conf.py
+index 654f3c7..46c3b43 100644
+--- a/doc/build/conf.py
++++ b/doc/build/conf.py
+@@ -128,7 +128,8 @@ pygments_style = "sphinx"
+ 
+ # The theme to use for HTML and HTML Help pages.  See the documentation for
+ # a list of builtin themes.
+-html_theme = "zsmako"
++# html_theme = "zsmako"
++html_theme = "zzzeeksphinx"
+ 
+ # Theme options are theme-specific and customize the look and feel of a theme
+ # further.  For a list of options available for each theme, see the

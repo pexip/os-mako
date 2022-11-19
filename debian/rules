@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+#export DH_VERBOSE = 1
+
+export PYBUILD_NAME=mako
+export PYBUILD_BEFORE_TEST=cp setup.cfg {build_dir}
+export PYBUILD_AFTER_TEST=rm {build_dir}/setup.cfg
+export PYBUILD_SYSTEM=distutils
+
+%:
+	dh $@ --with=sphinxdoc,python3 --buildsystem=pybuild
+
+override_dh_sphinxdoc:
+ifeq (,$(findstring nodoc, $(DEB_BUILD_OPTIONS)))
+	PYTHONPATH=. python3 -m sphinx -b html -N doc/build $(CURDIR)/debian/python-mako-doc/usr/share/doc/python-mako-doc/html
+	dh_sphinxdoc
+endif
+
+override_dh_install:
+	dh_install
+ifeq (,$(findstring nodoc,$(DEB_BUILD_OPTIONS)))
+	mv $(CURDIR)/debian/python-mako-doc/usr/share/vim/addons/indent/mako_indent.vim \
+	   $(CURDIR)/debian/python-mako-doc/usr/share/vim/addons/indent/mako.vim
+endif
+
+override_dh_installchangelogs:
+	dh_installchangelogs -i doc/build/changelog.rst

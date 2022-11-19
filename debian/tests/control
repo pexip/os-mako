@@ -1,0 +1,9 @@
+Tests:
+ upstream-tests
+Depends:
+ python3-all,
+ python3-markupsafe,
+ python3-mock,
+ python3-pytest,
+ python3-mako,
+Restrictions: allow-stderr
