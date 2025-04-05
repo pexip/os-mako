@@ -3,8 +3,171 @@
 Changelog
 =========
 
+1.3
+===
+
+.. changelog::
+    :version: 1.3.9
+    :released: Tue Feb 4 2025
+
+    .. change::
+        :tags: bug, tests
+        :tickets: 408
+
+        Fixed test suite to not rely upon ancient "future division" statement to
+        test the :paramref:`.Template.future_imports` feature.   The test is
+        replaced with one that tests only the rendering, not the ultimate effect.
+
+.. changelog::
+    :version: 1.3.8
+    :released: Sat Dec 7 2024
+
+    .. change::
+        :tags: bug, lexer
+        :tickets: 415, 140
+
+        Reverted the fix for :ticket:`140` released in Mako 1.3.7 as it produced
+        regressions in existing user code.
+
+
+.. changelog::
+    :version: 1.3.7 (yanked)
+    :released: Tue Dec 3 2024
+
+    .. change::
+        :tags: bug, lexer, codegen
+        :tickets: 140
+
+        During the lexical analysis phase, add an additional prefix for undeclared
+        identifiers that have the same name as built-in flags, and determine the
+        final filter to be used during the code generation phase based on the
+        context provided by the user. Pull request by Hai Zhu.
+
+    .. change::
+        :tags: bug, lexer
+        :tickets: 400, 401
+
+        Support the direct passing of dictionary literals when calling functions
+        and fix the errors caused by nested braces.   This revises the fix that was
+        released in 1.3.4 and then reverted in 1.3.5. Pull request by Hai Zhu and
+        Jose Galvez.
+
+.. changelog::
+    :version: 1.3.6
+    :released: Mon Oct 21 2024
+
+    .. change::
+        :tags: bug, lexer
+        :tickets: 412
+
+        Fixed long standing bug where the sequence ``<&`` would be misinterpreted
+        by the lexer.   It's not clear why the ampersand character was part of the
+        characters being consumed here and it may have been an inadvertent bit of
+        code from one of Mako's predecessor languages.
+
+.. changelog::
+    :version: 1.3.5
+    :released: Tue May 14 2024
+
+    .. change::
+        :tags: bug, lexer, regression
+        :tickets: 400, 401
+
+        Reverted the fix for :ticket:`400` as it caused new issues when traversing
+        some bracketed situations.
+
+
+.. changelog::
+    :version: 1.3.4 (yanked)
+    :released: Mon May 13 2024
+
+    .. change::
+        :tags: bug, lexer
+        :tickets: 398
+
+        Fixed regression caused by the fix for :ticket:`320` where new logic added
+        to interpret list and dictionary comprehensions would fail for expression
+        oriented keys.  As the parsing in question was not necessary for these
+        keys, it's been removed.  Pull request courtesy Sébastien Granjoux.
+
+    .. change::
+        :tags: bug, lexer
+        :tickets: 400
+
+        Fixed issue where a parsed expression which contained sub-brackets, such as
+        dictionary literals, would fail to be interpreted correctly even though the
+        initial parsing is correct. Pull request courtesy Jose Galvez.
+
+        .. note:: this change was **reverted** and release 1.3.4 was yanked as
+           this fix caused regressions.
+
+.. changelog::
+    :version: 1.3.3
+    :released: Wed Apr 10 2024
+
+    .. change::
+        :tags: bug, codegen
+        :tickets: 146
+
+        Fixed unexpected error when use control lines which the
+        first control block with no bodies other than comments,
+        as `pass` is now added to the first empty block.
+        Pull request courtesy Hai Zhu.
+
+    .. change::
+        :tags: bug, parser
+        :tickets: 320
+
+        Fixed unexpected syntax error in strict_undefined mode that occurred
+        when using comprehensions within a function in a Mako Python code block.
+        Now, the local variable in comprehensions won't be added to the checklist
+        when using strict_undefined mode.
+        Pull request courtesy Hai Zhu.
+
+.. changelog::
+    :version: 1.3.2
+    :released: Tue Jan 30 2024
+
+    .. change::
+        :tags: bug, lexer
+        :tickets: 323
+
+        Fixed parsing issue where attempting to render a single percent sign %
+        using an escaped percent %% would not function correctly if the escaped
+        percent were not the first character on a line.  Note that this is a revised
+        version of a similar change made in Mako 1.3.1 which caused unexpected
+        parsing regressions, resulting in the release being yanked.
+        Pull request courtesy Hai Zhu.
+
+.. changelog::
+    :version: 1.3.1
+    :released: Mon Jan 22 2024
+
+    .. change::
+        :tags: bug, lexer
+        :tickets: 323
+
+        Fixed parsing issue where attempting to render a single percent sign ``%``
+        using an escaped percent ``%%`` would not function correctly if the escaped
+        percent were not the first character on a line.  Pull request courtesy Hai
+        Zhu.
+
+        .. note::  Mako 1.3.1 was yanked from pypi and this change was reverted,
+           replaced with a modified version for Mako 1.3.2.
+
+.. changelog::
+    :version: 1.3.0
+    :released: Wed Nov 8 2023
+
+    .. change::
+        :tags: change, installation
+
+        Mako 1.3.0 bumps the minimum Python version to 3.8, as 3.7 is EOL as of
+        2023-06-27.   Python 3.12 is now supported explicitly.
+
 1.2
 ===
+
 
 .. changelog::
     :version: 1.2.4

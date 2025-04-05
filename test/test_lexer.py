@@ -200,15 +200,102 @@ class LexerTest(TemplateTest):
             TemplateNode(
                 {},
                 [
-                    Text("""\n\n""", (1, 1)),
-                    Text("""% some whatever.\n\n""", (3, 2)),
-                    Text("   %% more some whatever\n", (5, 2)),
+                    Text("\n\n%", (1, 1)),
+                    Text(" some whatever.\n\n", (3, 3)),
+                    Text("    %", (5, 1)),
+                    Text(" more some whatever\n", (5, 7)),
                     ControlLine("if", "if foo:", False, (6, 1)),
                     ControlLine("if", "endif", True, (7, 1)),
                     Text("        ", (8, 1)),
                 ],
             ),
         )
+
+    def test_percent_escape2(self):
+        template = """%% do something
+%%% do something
+if <some condition>:
+    %%%% do something
+        """
+        node = Lexer(template).parse()
+        self._compare(
+            node,
+            TemplateNode(
+                {},
+                [
+                    Text("%", (1, 1)),
+                    Text(" do something\n", (1, 3)),
+                    Text("%%", (2, 1)),
+                    Text(" do something\nif <some condition>:\n", (2, 4)),
+                    Text("    %%%", (4, 1)),
+                    Text(" do something\n        ", (4, 9)),
+                ],
+            ),
+        )
+
+    def test_percent_escape_with_control_block(self):
+        template = """
+% for i in [1, 2, 3]:
+    %% do something ${i}
+% endfor
+"""
+        node = Lexer(template).parse()
+        self._compare(
+            node,
+            TemplateNode(
+                {},
+                [
+                    Text("\n", (1, 1)),
+                    ControlLine("for", "for i in [1, 2, 3]:", False, (2, 1)),
+                    Text("    %", (3, 1)),
+                    Text(" do something ", (3, 7)),
+                    Expression("i", [], (3, 21)),
+                    Text("\n", (3, 25)),
+                    ControlLine("for", "endfor", True, (4, 1)),
+                ],
+            ),
+        )
+
+    def test_inline_percent(self):
+        template = """
+%% foo
+bar %% baz
+"""
+        node = Lexer(template).parse()
+        self._compare(
+            node,
+            TemplateNode(
+                {},
+                [Text("\n%", (1, 1)), Text(" foo\nbar %% baz\n", (2, 3))],
+            ),
+        )
+
+        def test_inline_percent_with_control_block(self):
+            template = """
+% for i in [1, 2, 3]:
+%% foo
+bar %% baz
+% endfor
+"""
+            node = Lexer(template).parse()
+            self._compare(
+                node,
+                TemplateNode(
+                    {},
+                    [
+                        Text("\n", (1, 1)),
+                        ControlLine(
+                            "for", "for i in [1, 2, 3]:", False, (2, 1)
+                        ),
+                        Text("%", (3, 1)),
+                        Text(" foo\nbar ", (3, 3)),
+                        Text("%", (3, 3)),
+                        Text("%", (3, 3)),
+                        Text(" baz\n", (4, 7)),
+                        ControlLine("for", "endfor", True, (5, 1)),
+                    ],
+                ),
+            )
 
     def test_old_multiline_comment(self):
         template = """#*"""
@@ -720,6 +807,418 @@ more text
                     ),
                     Text("\n        ", (4, 49)),
                 ],
+            ),
+        )
+
+    @pytest.mark.parametrize(
+        "expr",
+        [
+            ("${foo}${bar}",),
+            ("file_${foo}_bat_${bar}.py",),
+            ("${foo}_bat_${bar}",),
+            ("${foo}${bar}.py",),
+        ],
+    )
+    def test_dict_expression_issue_400_regression(self, expr):
+        """test for issue #401.
+
+        This was the regression case for #400
+
+        """
+        template = f'<%include file="{expr}"/>'
+
+        nodes = Lexer(template).parse()
+        self._compare(
+            nodes,
+            TemplateNode(
+                {},
+                [IncludeTag("include", {"file": f"{expr}"}, (1, 1), [])],
+            ),
+        )
+
+    def test_ampersand_issue_412(self):
+        template = """
+property = <&node>;
+
+"""
+        nodes = Lexer(template).parse()
+        self._compare(
+            nodes,
+            TemplateNode({}, [Text("\nproperty = <&node>;\n\n", (1, 1))]),
+        )
+
+    def test_dict_expression_issue_400(self):
+        """test for issue #400"""
+        template = """
+        <%def name="dtest(d)">
+            % for k,v in d.items():
+            ${k} = ${v}
+            % endfor
+        </%def>
+
+        <%self:dtest d="${
+                            {
+                                'id':'4',
+                                'foo':'barr'
+                            }
+                        }" />
+        """
+        nodes = Lexer(template).parse()
+        self._compare(
+            nodes,
+            TemplateNode(
+                {},
+                [
+                    Text("\n        ", (1, 1)),
+                    DefTag(
+                        "def",
+                        {"name": "dtest(d)"},
+                        (2, 9),
+                        [
+                            Text("\n", (2, 31)),
+                            ControlLine(
+                                "for", "for k,v in d.items():", False, (3, 1)
+                            ),
+                            Text("            ", (4, 1)),
+                            Expression("k", [], (4, 13)),
+                            Text(" = ", (4, 17)),
+                            Expression("v", [], (4, 20)),
+                            Text("\n", (4, 24)),
+                            ControlLine("for", "endfor", True, (5, 1)),
+                            Text("        ", (6, 1)),
+                        ],
+                    ),
+                    Text("\n\n        ", (6, 16)),
+                    CallNamespaceTag(
+                        "self:dtest",
+                        {
+                            "d": "${\n                            "
+                            "{\n                                'id':'4',\n"
+                            "                                'foo':'barr'\n"
+                            "                            }\n"
+                            "                        }"
+                        },
+                        (8, 9),
+                        [],
+                    ),
+                    Text("\n        ", (13, 30)),
+                ],
+            ),
+        )
+
+    def test_dict_expression_2_issue_400(self):
+        """test for issue #400"""
+        template = """
+        <%def name="thing(thing)">
+            ${type(thing)}
+        </%def>
+
+        <%self:thing thing="foo" />
+
+        <%self:thing thing="${5}" />
+
+        <%self:thing thing="${[1,2,3]}" />
+
+        <%self:thing thing="${{'id':'4'}, {'id': 5}}" />
+
+
+        <%
+            foo="this is foo"
+            g=False
+        %>
+
+        <%def name="bar(x, y)">
+            ${x} ${y}
+        </%def>
+
+        <%self:bar x=" ${{'id':4}} " y="x${g and '1' or '2'}y"/>
+
+        <%self:dtest d="${ {
+            'x-on:click':foo,
+            'foo':'bar'
+        } }" />
+        """
+        nodes = Lexer(template).parse()
+        self._compare(
+            nodes,
+            TemplateNode(
+                {},
+                [
+                    Text("\n        ", (1, 1)),
+                    DefTag(
+                        "def",
+                        {"name": "thing(thing)"},
+                        (2, 9),
+                        [
+                            Text("\n            ", (2, 35)),
+                            Expression("type(thing)", [], (3, 13)),
+                            Text("\n        ", (3, 27)),
+                        ],
+                    ),
+                    Text("\n\n        ", (4, 16)),
+                    CallNamespaceTag(
+                        "self:thing", {"thing": "foo"}, (6, 9), []
+                    ),
+                    Text("\n\n        ", (6, 36)),
+                    CallNamespaceTag(
+                        "self:thing", {"thing": "${5}"}, (8, 9), []
+                    ),
+                    Text("\n\n        ", (8, 37)),
+                    CallNamespaceTag(
+                        "self:thing", {"thing": "${[1,2,3]}"}, (10, 9), []
+                    ),
+                    Text("\n\n        ", (10, 43)),
+                    CallNamespaceTag(
+                        "self:thing",
+                        {"thing": "${{'id':'4'}, {'id': 5}}"},
+                        (12, 9),
+                        [],
+                    ),
+                    Text("\n\n\n        ", (12, 57)),
+                    Code(
+                        '\nfoo="this is foo"\ng=False\n        \n',
+                        False,
+                        (15, 9),
+                    ),
+                    Text("\n\n        ", (18, 11)),
+                    DefTag(
+                        "def",
+                        {"name": "bar(x, y)"},
+                        (20, 9),
+                        [
+                            Text("\n            ", (20, 32)),
+                            Expression("x", [], (21, 13)),
+                            Text(" ", (21, 17)),
+                            Expression("y", [], (21, 18)),
+                            Text("\n        ", (21, 22)),
+                        ],
+                    ),
+                    Text("\n\n        ", (22, 16)),
+                    CallNamespaceTag(
+                        "self:bar",
+                        {"x": " ${{'id':4}} ", "y": "x${g and '1' or '2'}y"},
+                        (24, 9),
+                        [],
+                    ),
+                    Text("\n\n        ", (24, 65)),
+                    CallNamespaceTag(
+                        "self:dtest",
+                        {
+                            "d": "${ {\n            'x-on:click':foo,\n"
+                            "            'foo':'bar'\n        } }"
+                        },
+                        (26, 9),
+                        [],
+                    ),
+                    Text("\n        ", (29, 16)),
+                ],
+            ),
+        )
+
+    def test_dict_expression(self):
+        template = """
+        <%def name="dtest(d)">
+            % for k,v in d.items():
+            ${k} = ${v}
+            % endfor
+        </%def>
+        <%self:dtest d="${
+                            {
+                                'id':'4',
+                                'foo':'barr'
+                            }
+                        }" />
+        """
+        nodes = Lexer(template).parse()
+        self._compare(
+            nodes,
+            TemplateNode(
+                {},
+                [
+                    Text("\n        ", (1, 1)),
+                    DefTag(
+                        "def",
+                        {"name": "dtest(d)"},
+                        (2, 9),
+                        [
+                            Text("\n", (2, 31)),
+                            ControlLine(
+                                "for", "for k,v in d.items():", False, (3, 1)
+                            ),
+                            Text("            ", (4, 1)),
+                            Expression("k", [], (4, 13)),
+                            Text(" = ", (4, 17)),
+                            Expression("v", [], (4, 20)),
+                            Text("\n", (4, 24)),
+                            ControlLine("for", "endfor", True, (5, 1)),
+                            Text("        ", (6, 1)),
+                        ],
+                    ),
+                    Text("\n        ", (6, 16)),
+                    CallNamespaceTag(
+                        "self:dtest",
+                        {
+                            "d": "${\n\
+                            {\n\
+                                'id':'4',\n\
+                                'foo':'barr'\n\
+                            }\n\
+                        }"
+                        },
+                        (7, 9),
+                        [],
+                    ),
+                    Text("\n        ", (12, 30)),
+                ],
+            ),
+        )
+
+    def test_dict_expression_2(self):
+        template = """
+        <%def name="thing(thing)">
+            ${type(thing)}
+        </%def>
+        <%self:thing thing="foo" />
+        <%self:thing thing="${5}" />
+        <%self:thing thing="${[1,2,3]}" />
+        <%self:thing thing="${{'id':'4'}}" />
+        <%
+            foo="this is foo"
+            g=False
+        %>
+        <%def name="bar(x, y)">
+            ${x} ${y}
+        </%def>
+        <%self:bar x="${{'id':4}}" y="x${g and '1' or '2'}y"/>
+        <%def name="dtest(d)">
+        % for k,v in d.items():
+        ${k} = ${v}
+        % endfor
+        % if 'embeded' in d and 'name' in d['embeded']:
+        ${d['embeded']['name']}
+        % endif
+        </%def>
+        <%self:dtest d="${ {
+            'x-on:click':'foo',
+            'foo':'bar',
+            'embeded':{'name':'J Doe'}
+        } }" />
+        """
+        nodes = Lexer(template).parse()
+        self._compare(
+            nodes,
+            TemplateNode(
+                {},
+                [
+                    Text("\n        ", (1, 1)),
+                    DefTag(
+                        "def",
+                        {"name": "thing(thing)"},
+                        (2, 9),
+                        [
+                            Text("\n            ", (2, 35)),
+                            Expression("type(thing)", [], (3, 13)),
+                            Text("\n        ", (3, 27)),
+                        ],
+                    ),
+                    Text("\n        ", (4, 16)),
+                    CallNamespaceTag(
+                        "self:thing", {"thing": "foo"}, (5, 9), []
+                    ),
+                    Text("\n        ", (5, 36)),
+                    CallNamespaceTag(
+                        "self:thing", {"thing": "${5}"}, (6, 9), []
+                    ),
+                    Text("\n        ", (6, 37)),
+                    CallNamespaceTag(
+                        "self:thing", {"thing": "${[1,2,3]}"}, (7, 9), []
+                    ),
+                    Text("\n        ", (7, 43)),
+                    CallNamespaceTag(
+                        "self:thing", {"thing": "${{'id':'4'}}"}, (8, 9), []
+                    ),
+                    Text("\n        ", (8, 46)),
+                    Code(
+                        '\nfoo="this is foo"\ng=False\n        \n',
+                        False,
+                        (9, 9),
+                    ),
+                    Text("\n        ", (12, 11)),
+                    DefTag(
+                        "def",
+                        {"name": "bar(x, y)"},
+                        (13, 9),
+                        [
+                            Text("\n            ", (13, 32)),
+                            Expression("x", [], (14, 13)),
+                            Text(" ", (14, 17)),
+                            Expression("y", [], (14, 18)),
+                            Text("\n        ", (14, 22)),
+                        ],
+                    ),
+                    Text("\n        ", (15, 16)),
+                    CallNamespaceTag(
+                        "self:bar",
+                        {"x": "${{'id':4}}", "y": "x${g and '1' or '2'}y"},
+                        (16, 9),
+                        [],
+                    ),
+                    Text("\n        ", (16, 63)),
+                    DefTag(
+                        "def",
+                        {"name": "dtest(d)"},
+                        (17, 9),
+                        [
+                            Text("\n", (17, 31)),
+                            ControlLine(
+                                "for", "for k,v in d.items():", False, (18, 1)
+                            ),
+                            Text("        ", (19, 1)),
+                            Expression("k", [], (19, 9)),
+                            Text(" = ", (19, 13)),
+                            Expression("v", [], (19, 16)),
+                            Text("\n", (19, 20)),
+                            ControlLine("for", "endfor", True, (20, 1)),
+                            ControlLine(
+                                "if",
+                                "if 'embeded' in d and \
+'name' in d['embeded']:",
+                                False,
+                                (21, 1),
+                            ),
+                            Text("        ", (22, 1)),
+                            Expression("d['embeded']['name']", [], (22, 9)),
+                            Text("\n", (22, 32)),
+                            ControlLine("if", "endif", True, (23, 1)),
+                            Text("        ", (24, 1)),
+                        ],
+                    ),
+                    Text("\n        ", (24, 16)),
+                    CallNamespaceTag(
+                        "self:dtest",
+                        {
+                            "d": "${ {\n\
+            'x-on:click':'foo',\n\
+            'foo':'bar',\n\
+            'embeded':{'name':'J Doe'}\n\
+        } }"
+                        },
+                        (25, 9),
+                        [],
+                    ),
+                    Text("\n        ", (29, 16)),
+                ],
+            ),
+        )
+
+    def test_brace_expression(self):
+        template = '<%include file="${foo}${bar}"/>'
+        nodes = Lexer(template).parse()
+        self._compare(
+            nodes,
+            TemplateNode(
+                {},
+                [IncludeTag("include", {"file": "${foo}${bar}"}, (1, 1), [])],
             ),
         )
 

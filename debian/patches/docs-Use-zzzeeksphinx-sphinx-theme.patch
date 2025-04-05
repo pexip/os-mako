@@ -11,7 +11,7 @@ Forwarded: not-needed
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/doc/build/conf.py b/doc/build/conf.py
-index 654f3c7..46c3b43 100644
+index 247f2e1..fcc4f5d 100644
 --- a/doc/build/conf.py
 +++ b/doc/build/conf.py
 @@ -128,7 +128,8 @@ pygments_style = "sphinx"
