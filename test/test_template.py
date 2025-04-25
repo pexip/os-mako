@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from mako import exceptions
 from mako import runtime
 from mako import util
@@ -15,6 +17,7 @@ from mako.testing.config import config
 from mako.testing.fixtures import TemplateTest
 from mako.testing.helpers import flatten_result
 from mako.testing.helpers import result_lines
+from mako.testing.helpers import result_raw_lines
 
 
 class ctx:
@@ -30,7 +33,6 @@ class ctx:
 
 class MiscTest(TemplateTest):
     def test_crlf_linebreaks(self):
-
         crlf = r"""
 <%
     foo = True
@@ -722,6 +724,27 @@ class IncludeTest(TemplateTest):
 
 
 class UndefinedVarsTest(TemplateTest):
+    @pytest.mark.parametrize(
+        "filters",
+        [
+            ["str", "n"],
+            ["n"],
+            ["str", "h"],
+            ["h"],
+            [],
+        ],
+    )
+    def test_140_regression(self, filters):
+        """test #415, regression on #140"""
+
+        t1 = Template(
+            "hello world ${x}",
+            strict_undefined=True,
+            default_filters=filters,
+        )
+
+        t1.render_unicode(x="hi")
+
     def test_undefined(self):
         t = Template(
             """
@@ -877,6 +900,21 @@ class UndefinedVarsTest(TemplateTest):
         )
 
         eq_(result_lines(t.render(t="T")), ["t is: T", "a,b,c"])
+
+    def test_dict_comprehensions_in_function_plus_undeclared_strict(self):
+        t = Template(
+            """
+<%
+    def foo():
+        return {s[0]: s for s in ('foo',)}
+%>
+
+${ foo()['f'] }
+""",
+            strict_undefined=True,
+        )
+
+        eq_(result_lines(t.render()), ["foo"])
 
 
 class StopRenderingTest(TemplateTest):
@@ -1036,6 +1074,47 @@ class ControlTest(TemplateTest):
             template_args={"ctx": ctx},
         )
 
+    def test_blank_control_9(self):
+        self._do_memory_test(
+            """
+            % if True:
+            % elif False:
+            false
+            % else:
+            broken
+            % endif
+            """,
+            "",
+            filters=lambda s: s.strip(),
+            template_args={"ctx": ctx},
+        )
+
+    def test_blank_control_10(self):
+        self._do_memory_test(
+            """
+            % if True:
+            % else:
+            test
+            % endif
+            """,
+            "",
+            filters=lambda s: s.strip(),
+            template_args={"ctx": ctx},
+        )
+
+    def test_blank_control_11(self):
+        self._do_memory_test(
+            """
+            % try:
+            % except:
+            error
+            % endtry
+            """,
+            "",
+            filters=lambda s: s.strip(),
+            template_args={"ctx": ctx},
+        )
+
     def test_commented_blank_control_1(self):
         self._do_memory_test(
             """
@@ -1135,6 +1214,36 @@ class ControlTest(TemplateTest):
             template_args={"ctx": ctx},
         )
 
+    def test_commented_blank_control_9(self):
+        self._do_memory_test(
+            """
+            % if True:
+            ## comment
+            % elif False:
+            false
+            % else:
+            broken
+            % endif
+            """,
+            "",
+            filters=lambda s: s.strip(),
+            template_args={"ctx": ctx},
+        )
+
+    def test_commented_blank_control_10(self):
+        self._do_memory_test(
+            """
+            % try:
+            ## comment
+            % except:
+            error
+            % endtry
+            """,
+            "",
+            filters=lambda s: s.strip(),
+            template_args={"ctx": ctx},
+        )
+
     def test_multiline_control(self):
         t = Template(
             """
@@ -1164,7 +1273,6 @@ class GlobalsTest(TemplateTest):
 
 class RichTracebackTest(TemplateTest):
     def _do_test_traceback(self, utf8, memory, syntax):
-
         if memory:
             if syntax:
                 source = (
@@ -1667,5 +1775,113 @@ class LexerTest(TemplateTest):
 
 class FuturesTest(TemplateTest):
     def test_future_import(self):
-        t = Template("${ x / y }", future_imports=["division"])
-        assert result_lines(t.render(x=12, y=5)) == ["2.4"]
+        t = Template("foobar", future_imports=["annotations"])
+        assert t.code.startswith("from __future__ import annotations")
+
+
+class EscapeTest(TemplateTest):
+    def test_percent_escape(self):
+        t = Template(
+            """%% do something
+%%% do something
+if <some condition>:
+    %%%% do something
+"""
+        )
+        assert result_raw_lines(t.render()) == [
+            "% do something",
+            "%% do something",
+            "if <some condition>:",
+            "    %%% do something",
+        ]
+
+    def test_percent_escape2(self):
+        t = Template(
+            """
+% for i in [1, 2, 3]:
+    %% do something ${i}
+% endfor
+"""
+        )
+        assert result_raw_lines(t.render()) == [
+            "    % do something 1",
+            "    % do something 2",
+            "    % do something 3",
+        ]
+
+    def test_inline_percent(self):
+        t = Template(
+            """
+% for i in [1, 2, 3]:
+%% foo
+bar %% baz
+% endfor
+"""
+        )
+        assert result_raw_lines(t.render()) == [
+            "% foo",
+            "bar %% baz",
+            "% foo",
+            "bar %% baz",
+            "% foo",
+            "bar %% baz",
+        ]
+
+    def test_listcomp_in_func_strict(self):
+        t = Template(
+            """
+<%
+    mydict = { 'foo': 1 }
+    def getkeys(x):
+        return [ k for k in x.keys() ]
+%>
+
+${ ','.join( getkeys(mydict) ) }
+""",
+            strict_undefined=True,
+        )
+        assert result_raw_lines(t.render()) == ["foo"]
+
+    def test_setcomp_in_func_strict(self):
+        t = Template(
+            """
+<%
+    mydict = { 'foo': 1 }
+    def getkeys(x):
+        return { k for k in x.keys() }
+%>
+
+${ ','.join( getkeys(mydict) ) }
+""",
+            strict_undefined=True,
+        )
+        assert result_raw_lines(t.render()) == ["foo"]
+
+    def test_generator_in_func_strict(self):
+        t = Template(
+            """
+<%
+    mydict = { 'foo': 1 }
+    def getkeys(x):
+        return ( k for k in x.keys())
+%>
+
+${ ','.join( getkeys(mydict) ) }
+""",
+            strict_undefined=True,
+        )
+        assert result_raw_lines(t.render()) == ["foo"]
+
+    def test_dictcomp_in_func_strict(self):
+        t = Template(
+            """
+<%
+    def square():
+        return {i: i**2 for i in range(10)}
+%>
+
+${ square()[3] }
+""",
+            strict_undefined=True,
+        )
+        assert result_raw_lines(t.render()) == ["9"]

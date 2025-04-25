@@ -14,13 +14,13 @@ Build-Depends-Indep:
  python3-all,
  python3-changelog <!nodoc>,
  python3-markupsafe <!nocheck>,
- python3-mock <!nocheck>,
  python3-pytest <!nocheck>,
  python3-setuptools,
  python3-sphinx <!nodoc>,
  python3-sphinx-paramlinks <!nodoc>,
+ python3-sphinxcontrib.jquery <!nodoc>,
  python3-zzzeeksphinx <!nodoc>,
-Standards-Version: 4.6.1
+Standards-Version: 4.7.2
 Homepage: https://www.makotemplates.org/
 Vcs-Git: https://salsa.debian.org/python-team/packages/mako.git
 Vcs-Browser: https://salsa.debian.org/python-team/packages/mako
@@ -45,7 +45,6 @@ Description: documentation for the Mako Python library
 Package: python3-mako
 Architecture: all
 Depends:
- python3-pkg-resources,
  ${misc:Depends},
  ${python3:Depends},
 Breaks:
